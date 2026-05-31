@@ -1,58 +1,124 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Market Session Clock</title>
+
 <style>
-body{
-  font-family: Arial, sans-serif;
-  background:#111;
-  color:#fff;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-  margin:0;
-}
-.card{
-  padding:20px;
-  border-radius:12px;
-  background:#222;
-  text-align:center;
-  width:320px;
-}
-.time{font-size:2rem;font-weight:bold;}
-.session{font-size:1.2rem;margin-top:10px;}
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0f1115;
+    color: #eaeaea;
+    text-align: center;
+  }
+
+  h1 { margin-top: 20px; }
+
+  .clock {
+    font-size: 42px;
+    color: #00d4ff;
+    margin: 10px 0;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .card {
+    background: #1a1d24;
+    padding: 15px;
+    border-radius: 12px;
+  }
+
+  .active {
+    border: 2px solid #00ff88;
+    box-shadow: 0 0 15px #00ff8844;
+  }
+
+  .killzone {
+    color: #ff4d4d;
+    font-size: 13px;
+  }
+
+  .time {
+    color: #aaa;
+    font-size: 14px;
+  }
 </style>
 </head>
+
 <body>
-<div class="card">
-  <h2>Market Session Clock</h2>
-  <div class="time" id="time"></div>
-  <div class="session" id="session"></div>
+
+<h1>Market Session Clock (PDT)</h1>
+
+<div class="clock" id="localClock">--:--:--</div>
+
+<div class="grid">
+
+  <div class="card" id="asia">
+    <div><b>Asia Session</b></div>
+    <div class="time">Tokyo / Sydney</div>
+  </div>
+
+  <div class="card" id="london">
+    <div><b>London Session</b></div>
+    <div class="time">3:00 AM – 12:00 PM NY</div>
+    <div class="killzone">Killzone: 2:00 – 5:00 AM NY</div>
+  </div>
+
+  <div class="card" id="ny">
+    <div><b>New York Session</b></div>
+    <div class="time">8:00 AM – 5:00 PM NY</div>
+    <div class="killzone">Killzone: 7:00 – 10:00 AM NY</div>
+  </div>
+
 </div>
 
 <script>
-function updateClock(){
+function updateClock() {
   const now = new Date();
-  const pst = new Date(now.toLocaleString("en-US",{timeZone:"America/Los_Angeles"}));
-  const h = pst.getHours();
-  const m = pst.getMinutes().toString().padStart(2,"0");
 
-  document.getElementById("time").textContent = `${h}:${m} PST`;
+  // Local PDT clock
+  document.getElementById("localClock").innerText =
+    now.toLocaleTimeString();
 
-  let session = "Market Closed";
-  if(h >= 17 || h < 2) session = "Sydney Session";
-  else if(h >= 0 && h < 9) session = "Tokyo Session";
-  else if(h >= 2 && h < 11) session = "London Session";
-  else if(h >= 5 && h < 14) session = "New York Session";
+  // Convert to NY time properly (handles DST automatically)
+  const nyTime = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+  );
 
-  document.getElementById("session").textContent = session;
+  const nyHour = nyTime.getHours();
+
+  const london = document.getElementById("london");
+  const ny = document.getElementById("ny");
+  const asia = document.getElementById("asia");
+
+  [london, ny, asia].forEach(el => el.classList.remove("active"));
+
+  // London session (NY reference 3–12)
+  if (nyHour >= 3 && nyHour < 12) {
+    london.classList.add("active");
+  }
+
+  // NY session
+  if (nyHour >= 8 && nyHour < 17) {
+    ny.classList.add("active");
+  }
+
+  // Asia session (NY 19–4)
+  if (nyHour >= 19 || nyHour < 4) {
+    asia.classList.add("active");
+  }
 }
-setInterval(updateClock,1000);
+
+setInterval(updateClock, 1000);
 updateClock();
 </script>
+
 </body>
 </html>
