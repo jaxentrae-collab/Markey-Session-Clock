@@ -1,124 +1,595 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Market Session Clock</title>
 
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MktClock">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+
 <style>
+  :root {
+    --bg: #0a0c0f;
+    --panel: #0f1318;
+    --border: #1e2530;
+    --accent: #00d4ff;
+    --green: #00ff88;
+    --yellow: #ffd700;
+    --red: #ff4466;
+    --orange: #f7931a;
+    --purple: #cc44ff;
+    --dim: #3a4555;
+    --text: #c8d8e8;
+    --muted: #5a6a7a;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; overflow: hidden; }
+
   body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #0f1115;
-    color: #eaeaea;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding-top: calc(var(--safe-top) + 10px);
+    padding-bottom: calc(var(--safe-bottom) + 6px);
+    padding-left: 12px;
+    padding-right: 12px;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(0,212,255,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(0,255,136,0.03) 0%, transparent 50%);
+  }
+
+  /* HEADER */
+  .header {
     text-align: center;
+    flex-shrink: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
   }
-
-  h1 { margin-top: 20px; }
-
-  .clock {
-    font-size: 42px;
-    color: #00d4ff;
-    margin: 10px 0;
+  .header-label {
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 400;
+    margin-bottom: 2px;
   }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  .master-clock {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(32px, 9vw, 48px);
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(0,212,255,0.3);
+  }
+  .tz-row {
+    display: flex;
+    justify-content: center;
     gap: 12px;
-    padding: 20px;
+    margin-top: 2px;
+  }
+  .tz-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .date-line {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    font-family: 'Share Tech Mono', monospace;
   }
 
-  .card {
-    background: #1a1d24;
-    padding: 15px;
-    border-radius: 12px;
+  /* UTC BAR */
+  .utc-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid rgba(0,212,255,0.1);
+    border-radius: 3px;
+    padding: 3px 10px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
   }
-
-  .active {
-    border: 2px solid #00ff88;
-    box-shadow: 0 0 15px #00ff8844;
+  .utc-label {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
   }
-
-  .killzone {
-    color: #ff4d4d;
+  .utc-clock {
+    font-family: 'Share Tech Mono', monospace;
     font-size: 13px;
+    color: rgba(0,212,255,0.7);
+    letter-spacing: 0.08em;
   }
 
-  .time {
-    color: #aaa;
-    font-size: 14px;
+  /* KILL ZONE BANNER */
+  .killzone-banner {
+    display: none;
+    flex-shrink: 0;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    padding: 8px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .killzone-banner.visible { display: block; }
+  .killzone-banner::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--red);
+    box-shadow: 0 0 12px rgba(255,68,102,0.8);
+  }
+  .killzone-banner.kz-london { background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.3); }
+  .killzone-banner.kz-ny { background: rgba(204,68,255,0.08); border: 1px solid rgba(204,68,255,0.3); }
+  .killzone-banner.kz-ny::before { background: var(--purple); box-shadow: 0 0 12px rgba(204,68,255,0.8); }
+  .killzone-banner.kz-london-close { background: rgba(255,68,102,0.06); border: 1px solid rgba(255,68,102,0.2); }
+  .killzone-banner.kz-asian { background: rgba(255,215,0,0.06); border: 1px solid rgba(255,215,0,0.2); }
+  .killzone-banner.kz-asian::before { background: var(--yellow); box-shadow: 0 0 12px rgba(255,215,0,0.6); }
+
+  .kz-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .kz-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .kz-london .kz-title { color: var(--red); }
+  .kz-ny .kz-title { color: var(--purple); }
+  .kz-london-close .kz-title { color: var(--red); opacity: 0.8; }
+  .kz-asian .kz-title { color: var(--yellow); }
+
+  .kz-badge {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    font-family: 'Share Tech Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-weight: 700;
+  }
+  .kz-london .kz-badge { background: rgba(255,68,102,0.15); color: var(--red); border: 1px solid rgba(255,68,102,0.3); }
+  .kz-ny .kz-badge { background: rgba(204,68,255,0.15); color: var(--purple); border: 1px solid rgba(204,68,255,0.3); }
+  .kz-london-close .kz-badge { background: rgba(255,68,102,0.1); color: var(--red); border: 1px solid rgba(255,68,102,0.2); opacity: 0.8; }
+  .kz-asian .kz-badge { background: rgba(255,215,0,0.1); color: var(--yellow); border: 1px solid rgba(255,215,0,0.2); }
+
+  .kz-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .kz-desc {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+  .kz-countdown {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+  .kz-london .kz-countdown, .kz-london-close .kz-countdown { color: var(--red); }
+  .kz-ny .kz-countdown { color: var(--purple); }
+  .kz-asian .kz-countdown { color: var(--yellow); }
+
+  @keyframes kzpulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .kz-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: kzpulse 1s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  .kz-london .kz-dot, .kz-london-close .kz-dot { background: var(--red); box-shadow: 0 0 6px rgba(255,68,102,0.8); }
+  .kz-ny .kz-dot { background: var(--purple); box-shadow: 0 0 6px rgba(204,68,255,0.8); }
+  .kz-asian .kz-dot { background: var(--yellow); box-shadow: 0 0 6px rgba(255,215,0,0.6); }
+
+  /* SESSIONS */
+  .sessions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    overflow: hidden;
+  }
+  .session-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 9px 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, background 0.3s;
+    flex-shrink: 0;
+  }
+  .session-card.active { border-color: var(--green); background: #0d1a11; }
+  .session-card.active::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--green); box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  }
+  .session-card.closed { opacity: 0.4; }
+  .session-card.crypto-card { border-color: rgba(247,147,26,0.3); background: #110d00; }
+  .session-card.crypto-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--orange); box-shadow: 0 0 10px rgba(247,147,26,0.5);
+  }
+
+  .session-name {
+    font-size: clamp(13px, 3.8vw, 16px);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .session-hours {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+  .session-right { text-align: right; }
+  .status-badge {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    display: inline-block;
+  }
+  .active .status-badge { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+  .closed .status-badge { background: rgba(90,106,122,0.08); color: var(--muted); border: 1px solid rgba(90,106,122,0.2); }
+  .crypto-card .status-badge { background: rgba(247,147,26,0.08); color: var(--orange); border: 1px solid rgba(247,147,26,0.22); }
+  .countdown {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    margin-top: 4px;
+    letter-spacing: 0.04em;
+  }
+  .active .countdown { color: var(--green); }
+  .closed .countdown { color: var(--dim); }
+  .crypto-card .countdown { color: var(--orange); }
+
+  /* OVERLAP */
+  .overlap-note {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    padding: 4px;
+    background: rgba(0,212,255,0.05);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: none;
+    margin-top: 4px;
+  }
+  .overlap-note.visible { display: block; }
+
+  .footer {
+    margin-top: 6px;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    font-family: 'Share Tech Mono', monospace;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .live-dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 5px;
+    animation: pulse 1.5s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  .divider { height: 1px; background: var(--border); flex-shrink: 0; }
+
+  .install-banner {
+    background: rgba(0,212,255,0.07);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 4px;
+    padding: 7px 12px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .install-banner.hidden { display: none !important; }
+  .install-btn {
+    background: rgba(0,212,255,0.15); border: 1px solid rgba(0,212,255,0.3);
+    color: var(--accent); font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em; padding: 4px 10px;
+    border-radius: 2px; cursor: pointer; white-space: nowrap;
+  }
+  .install-dismiss {
+    background: none; border: none; color: var(--muted);
+    font-size: 14px; cursor: pointer; padding: 0 2px;
   }
 </style>
 </head>
-
 <body>
 
-<h1>Market Session Clock (PDT)</h1>
-
-<div class="clock" id="localClock">--:--:--</div>
-
-<div class="grid">
-
-  <div class="card" id="asia">
-    <div><b>Asia Session</b></div>
-    <div class="time">Tokyo / Sydney</div>
+<div class="header">
+  <div class="header-label">Market Session Clock</div>
+  <div class="master-clock" id="masterClock">--:--:--</div>
+  <div class="tz-row">
+    <div class="tz-label" id="tzLabel">--</div>
+    <div class="date-line" id="dateLine">---</div>
   </div>
-
-  <div class="card" id="london">
-    <div><b>London Session</b></div>
-    <div class="time">3:00 AM – 12:00 PM NY</div>
-    <div class="killzone">Killzone: 2:00 – 5:00 AM NY</div>
-  </div>
-
-  <div class="card" id="ny">
-    <div><b>New York Session</b></div>
-    <div class="time">8:00 AM – 5:00 PM NY</div>
-    <div class="killzone">Killzone: 7:00 – 10:00 AM NY</div>
-  </div>
-
 </div>
 
+<div class="utc-bar">
+  <span class="utc-label">UTC</span>
+  <span class="utc-clock" id="utcClock">--:--:--</span>
+</div>
+
+<!-- KILL ZONE BANNER -->
+<div class="killzone-banner" id="killzoneBanner">
+  <div class="kz-top">
+    <div class="kz-title"><span class="kz-dot"></span><span id="kzName">--</span></div>
+    <div class="kz-badge" id="kzBadge">KILL ZONE</div>
+  </div>
+  <div class="kz-bottom">
+    <div class="kz-desc" id="kzDesc">--</div>
+    <div class="kz-countdown" id="kzCountdown">--</div>
+  </div>
+</div>
+
+<div id="installBanner" class="install-banner hidden">
+  <span>⬇ Add to Home Screen</span>
+  <button class="install-btn" id="installBtn">INSTALL</button>
+  <button class="install-dismiss" id="dismissBtn">✕</button>
+</div>
+
+<div class="sessions" id="sessions"></div>
+<div class="overlap-note" id="overlapNote"></div>
+<div class="footer">Live · Auto-timezone · ICC Kill Zones</div>
+
 <script>
-function updateClock() {
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+let deferredPrompt = null;
+const installBanner = document.getElementById('installBanner');
+const installBtn = document.getElementById('installBtn');
+const dismissBtn = document.getElementById('dismissBtn');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  installBanner.classList.remove('hidden');
+});
+installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBanner.classList.add('hidden');
+});
+dismissBtn.addEventListener('click', () => installBanner.classList.add('hidden'));
+window.addEventListener('appinstalled', () => installBanner.classList.add('hidden'));
+
+// ICC Kill Zones (all times in UTC minutes)
+// London KZ:    07:00–10:00 UTC  (2–5am EST)
+// NY KZ:        12:00–15:00 UTC  (7–10am EST)
+// London Close: 14:00–16:00 UTC  (9–11am EST)
+// Asian KZ:     20:00–23:00 UTC  (3–6pm EST / Tokyo open area)
+const KILL_ZONES = [
+  { id: 'kz-asian',        name: 'ASIAN KILL ZONE',        utcOpen: 20*60, utcClose: 23*60, desc: 'Tokyo open · 3–6pm EST',        cssClass: 'kz-asian' },
+  { id: 'kz-london',       name: 'LONDON KILL ZONE',       utcOpen:  7*60, utcClose: 10*60, desc: 'London open · 2–5am EST · Prime ICC', cssClass: 'kz-london' },
+  { id: 'kz-london-close', name: 'LONDON CLOSE',           utcOpen: 14*60, utcClose: 16*60, desc: 'London close · 9–11am EST',      cssClass: 'kz-london-close' },
+  { id: 'kz-ny',           name: 'NEW YORK KILL ZONE',     utcOpen: 12*60, utcClose: 15*60, desc: 'NY open · 7–10am EST · Prime ICC',   cssClass: 'kz-ny' },
+];
+
+function isDST(date) {
+  const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
+  const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
+  return date.getTimezoneOffset() < Math.max(jan, jul);
+}
+
+function formatCountdownSec(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
+  return `${s}s`;
+}
+
+const mainSessions = [
+  { shortName: "NYSE Pre-Mkt", utcOpen: 9*60, utcClose: 13*60+30,
+    pstLabelDST: "2:00–6:30am PDT", pstLabelSTD: "1:00–5:30am PST" },
+  { shortName: "NYSE / NASDAQ", utcOpen: 13*60+30, utcClose: 20*60,
+    pstLabelDST: "6:30am–1:00pm PDT", pstLabelSTD: "5:30am–12:00pm PST" },
+  { shortName: "London", utcOpen: 8*60, utcClose: 17*60,
+    pstLabelDST: "1:00–10:00am PDT", pstLabelSTD: "12:00am–9:00am PST" },
+  { shortName: "Tokyo", utcOpen: 23*60, utcClose: 8*60,
+    pstLabelDST: "4:00pm–1:00am PDT", pstLabelSTD: "3:00pm–12:00am PST" },
+  { shortName: "Sydney", utcOpen: 22*60, utcClose: 7*60,
+    pstLabelDST: "3:00pm–12:00am PDT", pstLabelSTD: "2:00–11:00pm PST" },
+];
+
+function tick() {
   const now = new Date();
+  const dst = isDST(now);
 
-  // Local PDT clock
-  document.getElementById("localClock").innerText =
-    now.toLocaleTimeString();
+  const lH = now.getHours(), lM = now.getMinutes(), lS = now.getSeconds();
+  document.getElementById('masterClock').textContent =
+    `${String(lH).padStart(2,'0')}:${String(lM).padStart(2,'0')}:${String(lS).padStart(2,'0')}`;
 
-  // Convert to NY time properly (handles DST automatically)
-  const nyTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
-  );
+  const tzShort = new Date().toLocaleTimeString('en', {timeZoneName:'short'}).split(' ').pop();
+  document.getElementById('tzLabel').textContent = tzShort;
 
-  const nyHour = nyTime.getHours();
+  const uH = now.getUTCHours(), uM = now.getUTCMinutes(), uS = now.getUTCSeconds();
+  document.getElementById('utcClock').textContent =
+    `${String(uH).padStart(2,'0')}:${String(uM).padStart(2,'0')}:${String(uS).padStart(2,'0')}`;
 
-  const london = document.getElementById("london");
-  const ny = document.getElementById("ny");
-  const asia = document.getElementById("asia");
+  const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  document.getElementById('dateLine').textContent =
+    `${days[now.getDay()]} ${months[now.getMonth()]} ${now.getDate()}`;
 
-  [london, ny, asia].forEach(el => el.classList.remove("active"));
+  const utcMinutes = uH * 60 + uM;
+  const utcTotalSecs = uH * 3600 + uM * 60 + uS;
 
-  // London session (NY reference 3–12)
-  if (nyHour >= 3 && nyHour < 12) {
-    london.classList.add("active");
+  // Kill zone check
+  const kzBanner = document.getElementById('killzoneBanner');
+  let activeKZ = null;
+  for (const kz of KILL_ZONES) {
+    if (utcMinutes >= kz.utcOpen && utcMinutes < kz.utcClose) {
+      activeKZ = kz; break;
+    }
   }
 
-  // NY session
-  if (nyHour >= 8 && nyHour < 17) {
-    ny.classList.add("active");
+  if (activeKZ) {
+    kzBanner.className = `killzone-banner visible ${activeKZ.cssClass}`;
+    document.getElementById('kzName').textContent = activeKZ.name;
+    document.getElementById('kzDesc').textContent = activeKZ.desc;
+    document.getElementById('kzBadge').textContent = 'KILL ZONE ACTIVE';
+    let diff = activeKZ.utcClose * 60 - utcTotalSecs;
+    if (diff < 0) diff += 86400;
+    document.getElementById('kzCountdown').textContent = `Ends ${formatCountdownSec(diff)}`;
+  } else {
+    // Find next kill zone
+    let nextKZ = null, nextDiff = Infinity;
+    for (const kz of KILL_ZONES) {
+      let diff = kz.utcOpen * 60 - utcTotalSecs;
+      if (diff < 0) diff += 86400;
+      if (diff < nextDiff) { nextDiff = diff; nextKZ = kz; }
+    }
+    if (nextKZ) {
+      kzBanner.className = `killzone-banner visible ${nextKZ.cssClass}`;
+      document.getElementById('kzName').textContent = nextKZ.name;
+      document.getElementById('kzDesc').textContent = nextKZ.desc;
+      document.getElementById('kzBadge').textContent = 'NEXT KILL ZONE';
+      document.getElementById('kzCountdown').textContent = `In ${formatCountdownSec(nextDiff)}`;
+    } else {
+      kzBanner.classList.remove('visible');
+    }
   }
 
-  // Asia session (NY 19–4)
-  if (nyHour >= 19 || nyHour < 4) {
-    asia.classList.add("active");
+  // Sessions
+  const sessionsEl = document.getElementById('sessions');
+  sessionsEl.innerHTML = '';
+
+  const cryptoCard = document.createElement('div');
+  cryptoCard.className = 'session-card crypto-card';
+  cryptoCard.innerHTML = `
+    <div class="session-left">
+      <div class="session-name" style="color:#f7931a"><span class="live-dot" style="background:#f7931a;box-shadow:0 0 8px rgba(247,147,26,0.6)"></span>₿ CRYPTO</div>
+      <div class="session-hours">24 hrs · 7 days · Bitunix</div>
+    </div>
+    <div class="session-right">
+      <div class="status-badge">ALWAYS OPEN</div>
+      <div class="countdown">Non-stop</div>
+    </div>`;
+  sessionsEl.appendChild(cryptoCard);
+
+  const div = document.createElement('div');
+  div.className = 'divider';
+  sessionsEl.appendChild(div);
+
+  let activeSessions = [];
+
+  mainSessions.forEach(sess => {
+    const { utcOpen: open, utcClose: close } = sess;
+    let inSession = open < close
+      ? (utcMinutes >= open && utcMinutes < close)
+      : (utcMinutes >= open || utcMinutes < close);
+
+    if (inSession) activeSessions.push(sess.shortName);
+
+    let countdownText = '';
+    if (inSession) {
+      let diff = close * 60 - utcTotalSecs;
+      if (diff < 0) diff += 86400;
+      countdownText = `Closes ${formatCountdownSec(diff)}`;
+    } else {
+      let diff = open * 60 - utcTotalSecs;
+      if (diff < 0) diff += 86400;
+      countdownText = `Opens ${formatCountdownSec(diff)}`;
+    }
+
+    const pstLabel = dst ? sess.pstLabelDST : sess.pstLabelSTD;
+    const card = document.createElement('div');
+    card.className = `session-card ${inSession ? 'active' : 'closed'}`;
+    card.innerHTML = `
+      <div class="session-left">
+        <div class="session-name">${inSession ? '<span class="live-dot"></span>' : ''}${sess.shortName}</div>
+        <div class="session-hours">${pstLabel}</div>
+      </div>
+      <div class="session-right">
+        <div class="status-badge">${inSession ? 'OPEN' : 'CLOSED'}</div>
+        <div class="countdown">${countdownText}</div>
+      </div>`;
+    sessionsEl.appendChild(card);
+  });
+
+  const overlapEl = document.getElementById('overlapNote');
+  if (activeSessions.includes('London') && activeSessions.includes('NYSE / NASDAQ')) {
+    overlapEl.textContent = '⚡ LONDON / NEW YORK OVERLAP — Peak Liquidity';
+    overlapEl.classList.add('visible');
+  } else if (activeSessions.includes('Tokyo') && activeSessions.includes('London')) {
+    overlapEl.textContent = '⚡ TOKYO / LONDON OVERLAP — Active Liquidity';
+    overlapEl.classList.add('visible');
+  } else {
+    overlapEl.classList.remove('visible');
   }
 }
 
-setInterval(updateClock, 1000);
-updateClock();
+tick();
+setInterval(tick, 1000);
 </script>
-
 </body>
 </html>
